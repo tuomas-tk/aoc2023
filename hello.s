@@ -25,7 +25,21 @@ loop_lines:
   addi t1, x0, 0 # will be first number
   addi t2, x0, 0 # will be last number
 
-  # Reset the storage here
+  # Reset the modifiable parts of the storage
+  la t3, numbers
+  reset_loop_number:
+    sb x0, 0(t3)
+    # move forward until 0x00 char, t4 will be the char after
+    reset_loop_until_at_end:
+      addi t3, t3, 1
+      lb t4, 0(t3)
+      bne t4, x0, reset_loop_until_at_end
+    # now t3 is pointer to the 0-char after the string
+    # move two steps forward to get to the start of the next section
+    addi t3, t3, 2
+    # check if the next section starts with \n instead of smaller binary value
+    lb t4, 0(t3)
+    bne t4, s11, reset_loop_number
   
   loop_chars:
     # load byte to s4 from the address in s2 (the input address)
@@ -89,14 +103,16 @@ loop_lines:
 
         end_of_number:
           # move forward until 0x00 char, t4 will be the char after
-          addi t4, t3, 1
+          addi t4, t3, 0
           loop_until_at_end:
-            lb t5, 0(t4)
             addi t4, t4, 1
+            lb t5, 0(t4)
             bne t5, x0, loop_until_at_end
-          addi t3, t4, 0
+          # now t4 is pointer to the 0-char after the string
+          # set t3 to the start of the next number section
+          addi t3, t4, 2
+          # check if the next sections starts with \n instead of smaller binary value
           lb t4, 0(t3)
-          addi t3, t3, 1
           bne t4, s11, loop_numbers
 
       j loop_chars
@@ -157,7 +173,7 @@ end_of_input:
 # alignment not necessary, just making it easier to see where the stuff is
 .balign 16, 0
 numbers:
-  .string "", "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9", "\n"
+  .string "", "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9\n"
   .string "two\x02"
   .string "three\x03"
   .string "four\x04"
@@ -165,7 +181,9 @@ numbers:
   .string "six\06"
   .string "seven\07"
   .string "eight\08"
-  .string "nine\09\0\n" # line break at the end
+  .string "nine\09" # line break at the end
+
+.skip 32, 0
 
 stack:
 .skip 32, 0
