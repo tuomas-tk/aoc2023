@@ -64,21 +64,21 @@ loop_lines:
       loop_numbers:
         # t3 points to the beginning of the current number part
         # load how far we are already to the string, t4 points to the char that needs to be checked
-        sb s4, 0(s1) # debug
+        # sb s4, 0(s1) # debug
         lb t4, 0(t3)
-        sb t4, 0(s1) # debug
+        # sb t4, 0(s1) # debug
         add t4, t4, t3
         addi t4, t4, 1
         lb t4, 0(t4) # t4 is the actual character
-        sb t4, 0(s1) # debug
-        sb s11, 0(s1) # debug
+        # sb t4, 0(s1) # debug
+        # sb s11, 0(s1) # debug
         beq t4, s4, correct
           # incorrect, set counter to 0
           sb x0, 0(t3)
           j end_of_number
         correct:
-          sb t4, 0(s1) # debug
-          sb s11, 0(s1) # debug
+          # sb t4, 0(s1) # debug
+          # sb s11, 0(s1) # debug
           # correct, increase counter
           lb t4, 0(t3)
           addi t4, t4, 1
@@ -87,10 +87,10 @@ loop_lines:
           add t4, t4, t3 # t4 is pointer to next char
           addi t4, t4, 1
           lb t5, 0(t4)
-          sb t5, 0(s1) # debug
-          sb t5, 0(s1) # debug
-          sb t5, 0(s1) # debug
-          sb s11, 0(s1) # debug
+          # sb t5, 0(s1) # debug
+          # sb t5, 0(s1) # debug
+          # sb t5, 0(s1) # debug
+          # sb s11, 0(s1) # debug
           bne t5, x0, end_of_number
             # number is done
             # reset counter
@@ -173,29 +173,14 @@ end_of_input:
 # alignment not necessary, just making it easier to see where the stuff is
 .balign 16, 0
 numbers:
-  .string "", "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9\n"
-  .string "two\x02"
-  .string "three\x03"
-  .string "four\x04"
-  .string "five\x05"
-  .string "six\06"
-  .string "seven\07"
-  .string "eight\08"
-  .string "nine\09" # line break at the end
+  .string "", "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9\n" # line break at the end
 
-.skip 32, 0
-
+.balign 16, 0
 stack:
 .skip 32, 0
 # reserve 16 characters of space to store the number to output in reverse order
 
 message:
-  .string "two1nine
-eightwothree
-abcone2threexyz
-xtwone3four
-4nineeightseven2
-zoneight234
-7pqrstsixteen
+  .string "ooneb
 "
 
