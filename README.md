@@ -3,3 +3,4 @@
 | Day | Language        |
 | --- | --------------- |
 | 01  | RISC-V assembly |
+| 02  | awk             |
