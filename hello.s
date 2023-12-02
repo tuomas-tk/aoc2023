@@ -11,7 +11,7 @@ _start:
   # set s1 to the output address
   li s1, UART_BASE_ADDR
   # set s2 to the input address
-  la s2, message    # s2 := <message>
+  la s2, message - 1    # s2 := <message>
   # s3 is the sum counter, set to zero
   addi s3, x0, 0
 
@@ -24,33 +24,17 @@ loop_lines:
 
   addi t1, x0, 0 # will be first number
   addi t2, x0, 0 # will be last number
-
-  # Reset the modifiable parts of the storage
-  la t3, numbers
-  reset_loop_number:
-    sb x0, 0(t3)
-    # move forward until 0x00 char, t4 will be the char after
-    reset_loop_until_at_end:
-      addi t3, t3, 1
-      lb t4, 0(t3)
-      bne t4, x0, reset_loop_until_at_end
-    # now t3 is pointer to the 0-char after the string
-    # move two steps forward to get to the start of the next section
-    addi t3, t3, 2
-    # check if the next section starts with \n instead of smaller binary value
-    lb t4, 0(t3)
-    bne t4, s11, reset_loop_number
   
   loop_chars:
+    # add one to the input address (initial value is -1)
+    addi s2, s2, 1    # s2 := s2 + 1
     # load byte to s4 from the address in s2 (the input address)
     lb s4, 0(s2)      # s4 := (s2)
-    # add one to the input address
-    addi s2, s2, 1    # s2 := s2 + 1
     # finish processing if at the end of input
     beq s4, x0, end_of_input
     # finish processing if at the end of line
     beq s4, s11, end_of_line
-    # skip if not a number
+    # special handling for letters
     bge s4, s10, handle_letter
 
     # update last and first number variables
@@ -60,72 +44,66 @@ loop_lines:
     j loop_chars
 
     handle_letter:
-      la t3, numbers
-      loop_numbers:
-        # t3 points to the beginning of the current number part
-        # load how far we are already to the string, t4 points to the char that needs to be checked
-        # sb s4, 0(s1) # debug
-        lb t4, 0(t3)
-        # sb t4, 0(s1) # debug
-        add t4, t4, t3
-        addi t4, t4, 1
-        lb t4, 0(t4) # t4 is the actual character
-        # sb t4, 0(s1) # debug
-        # sb s11, 0(s1) # debug
-        beq t4, s4, correct
-          # incorrect, set counter to 0
-          sb x0, 0(t3)
+
+    la s5, numbers
+    loop_numbers:
+      # s5 points to the beginning of the current number part
+      # t3 is 0..n counter of how far into the string we have looped
+      addi t3, x0, 0
+      loop_name:
+        # t4 is the charcode from target string
+        add t4, t3, s5
+        lb t4, 0(t4)
+        # t5 is the charcode from input string
+        add t5, t3, s2
+        lb t5, 0(t5)
+
+        # when they match, move to next char
+        bne t4, t5, no_match
+          addi t3, t3, 1
+          j loop_name
+        no_match:
+
+        # when the target ends, we have found the whole name
+        bne t4, x0, incorrect
+          # load the numeric value and update t1/t2
+          add t4, t3, s5
+          lb t4, 1(t4)
+          addi t2, t4, 0
+          bne t1, x0, end_of_number
+          addi t1, t4, 0
           j end_of_number
-        correct:
-          # sb t4, 0(s1) # debug
-          # sb s11, 0(s1) # debug
-          # correct, increase counter
-          lb t4, 0(t3)
-          addi t4, t4, 1
-          sb t4, 0(t3)
-          # check if the number is done now
-          add t4, t4, t3 # t4 is pointer to next char
-          addi t4, t4, 1
+
+        # target and input were different, just move to next number candidate
+        incorrect:
+          j end_of_number
+
+      end_of_number:
+        # here we can assume that
+        #  s5 points to the beginning of the current number part
+        #  t3 is a 0..n counter somewhere in the current number, might be at the zero char at the end
+        # move forward until 0x00 char, t4 will be the char after
+        add t4, s5, t3
+        loop_until_at_end:
           lb t5, 0(t4)
-          # sb t5, 0(s1) # debug
-          # sb t5, 0(s1) # debug
-          # sb t5, 0(s1) # debug
-          # sb s11, 0(s1) # debug
-          bne t5, x0, end_of_number
-            # number is done
-            # reset counter
-            sb x0, 0(t3)
-            # load the numeric value and update t1/t2
-            lb t5, 1(t4)
-            addi t2, t5, 0
-            bne t1, x0, end_of_number
-            addi t1, t5, 0
+          addi t4, t4, 1
+          bne t5, x0, loop_until_at_end
+        # now t4 is pointer to the value char after the string
+        # set s5 to the start of the next number section
+        addi s5, t4, 1
+        # check if the next sections starts with \n instead of a letter char
+        lb t4, 0(s5)
+        bne t4, s11, loop_numbers
 
-        end_of_number:
-          # move forward until 0x00 char, t4 will be the char after
-          addi t4, t3, 0
-          loop_until_at_end:
-            addi t4, t4, 1
-            lb t5, 0(t4)
-            bne t5, x0, loop_until_at_end
-          # now t4 is pointer to the 0-char after the string
-          # set t3 to the start of the next number section
-          addi t3, t4, 2
-          # check if the next sections starts with \n instead of smaller binary value
-          lb t4, 0(t3)
-          bne t4, s11, loop_numbers
-
-      j loop_chars
+    j loop_chars
 
   end_of_line:
-    # print calibration value for the line
-    sb s10, 0(s1)
-    sb s10, 0(s1)
+    # debug: print calibration value for the line
     sb t1, 0(s1)
     sb t2, 0(s1)
     sb s11, 0(s1)
     
-    # convert to numbers
+    # convert chars to numbers
     addi t1, t1, -48 # 48 = '0'
     addi t2, t2, -48
 
@@ -164,23 +142,28 @@ end_of_input:
   li s1, VIRT_TEST
   sw s0, 0(s1)
 
-# this part of memory is used both as reference and variable storage
-# format: Atexttext0BAtexttext0BAtexttext0B
-# A = 1 byte, counter of how far in the string we are. Initially 0b0000
-# text = arbitrary length ASCII string: the characters of the name
-# 0 = 1 byte, always 0b0000
-# B = 1 byte, uint of the numeric value for the name
-# alignment not necessary, just making it easier to see where the stuff is
+# format: texttext0Dtexttext0Dtexttext0D
+# text = n bytes, arbitrary length ASCII string: the characters of the name
+# 0    = 1 byte,  always 0b0000, i.e. zero-termination char for the name
+# D    = 1 byte,  ASCII digit corresponding to the name before it
+# alignment not necessary, just making it easier to see where the stuff is in memory dump
 .balign 16, 0
 numbers:
-  .string "", "one", "1", "two", "2", "three", "3", "four", "4", "five", "5", "six", "6", "seven", "7", "eight", "8", "nine", "9\n" # line break at the end
+  .string "one", "1two", "2three", "3four", "4five", "5six", "6seven", "7eight", "8nine", "9\n" # line break at the end
 
-.balign 16, 0
-stack:
-.skip 32, 0
 # reserve 16 characters of space to store the number to output in reverse order
+stack:
+  .skip 16, 0
 
+# The input to the puzzle, also compiled into the program
+# There needs to be a line break at the end of the last line
 message:
-  .string "ooneb
+  .string "two1nine
+eightwothree
+abcone2threexyz
+xtwone3four
+4nineeightseven2
+zoneight234
+7pqrstsixteen
 "
 
