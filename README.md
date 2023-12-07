@@ -6,3 +6,4 @@
 | 02  | awk                      |
 | 03  | LibreOffice Calc / Excel |
 | 04  | QuickBasic 4.5           |
+| 05  | Haskell                  |
