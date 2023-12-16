@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import assert from "node:assert";
+import assert, { deepStrictEqual, equal } from "node:assert";
 
 // PARSING
 
@@ -67,7 +67,7 @@ const countUntilZzz = (_map: Map, _currentNode: string): number => {
 
 const calculate = (input: Map): number => countUntilZzz(input, "AAA");
 
-type Loop = { length: number; zIndex: number };
+type Loop = { length: bigint; zIndex: bigint; loopStart: bigint };
 type Name = string;
 
 const countLoopLength = (
@@ -88,8 +88,33 @@ const countLoopLength = (
   } while (typeof visited[instr][node] === "undefined");
   console.log(initialNode, count, z, visited[instr][node]);
   assert(z.length === 1);
-  return { length: count - visited[instr][node] + 1, zIndex: z[0] };
+  return {
+    length: BigInt(count - visited[instr][node]),
+    zIndex: BigInt(z[0]),
+    loopStart: BigInt(visited[instr][node]),
+  };
 };
+
+deepStrictEqual(
+  countLoopLength(
+    [
+      ["L"],
+      [
+        { name: "000", left: "111", right: "000" },
+        { name: "111", left: "222", right: "000" },
+        { name: "222", left: "33Z", right: "000" },
+        { name: "33Z", left: "444", right: "000" },
+        { name: "444", left: "111", right: "000" },
+      ],
+    ],
+    "000"
+  ),
+  {
+    length: 4n,
+    zIndex: 3n,
+    loopStart: 1n,
+  }
+);
 
 const countUntilAllEndZ = (_map: Map, _currentNodes: string[]): number => {
   let [instructions, nodes] = _map;
@@ -107,50 +132,85 @@ const countUntilAllEndZ = (_map: Map, _currentNodes: string[]): number => {
   return count;
 };
 
-const findMatch = (loops: Loop[]): number => {
+const findMatch = (loops: Loop[]): bigint => {
   const first = loops[0];
   const rest = loops.slice(1);
   let i = first.zIndex;
   console.log(rest);
-  while (rest.some(({ length, zIndex }) => i % length !== zIndex)) {
-    i += first.length;
+  while (
+    rest.some(
+      ({ length, zIndex, loopStart }) =>
+        (i - loopStart) % length !== zIndex - loopStart
+    )
+  ) {
+    i = i + first.length;
   }
   return i;
 };
 
 const findPairMatch = (loopA: Loop, loopB: Loop): Loop => {
-  const zIndexDiff = loopB.zIndex - loopA.zIndex;
-  const loopDiff = loopB.length - loopA.length;
-
-  const combinedLoopLength = loopA.length * loopB.length;
-  let i = loopA.zIndex;
-  while (i % loopB.length !== loopB.zIndex) {
+  const theGcd = gcd(loopA.length, loopB.length);
+  const combinedLoopLength = (loopA.length * loopB.length) / theGcd;
+  let i: bigint = loopA.zIndex;
+  while (
+    (i - loopB.loopStart) % loopB.length !==
+    loopB.zIndex - loopB.loopStart
+  ) {
     // console.log(i);
-    if (i > combinedLoopLength) throw "No solution found";
+    //if (i > combinedLoopLength + loopA.loopStart + loopB.loopStart + 2n)
+    //  throw "No solution found";
     i += loopA.length;
   }
 
   return {
     length: combinedLoopLength,
     zIndex: i,
+    loopStart: 0n,
   };
 };
+/*
+l=4, 2
+gcd = 2
+ll = 8
 
-const calculate2 = (input: Map): number => {
+00
+11
+20
+31
+00
+11
+20
+31
+*/
+
+deepStrictEqual(
+  findPairMatch(
+    { length: 3n, zIndex: 2n, loopStart: 1n },
+    { length: 2n, zIndex: 3n, loopStart: 3n }
+  ),
+  {
+    length: 6n,
+    zIndex: 5n,
+    loopStart: 0n,
+  }
+);
+
+const calculate2 = (input: Map): bigint => {
   const starts = input[1]
     .map(({ name }) => name)
     .filter((name) => name.endsWith("A"));
   const loops = starts.map((name) => countLoopLength(input, name));
   console.log(loops);
   // return findMatch(loops);
-  console.warn(findMatch(loops.slice(0, 3)));
-  console.log(
-    loops.reduce((prev, curr) => {
+  // console.warn(findMatch(loops.slice(0, 3)));
+  console.log(loops.map((a) => loops.map((b) => findPairMatch(a, b))));
+
+  return loops
+    .sort((a, b) => (a.loopStart > b.loopStart ? -1 : 1))
+    .reduce((prev, curr) => {
       console.log("reduce", prev, curr);
       return findPairMatch(prev, curr);
-    })
-  );
-  return 0;
+    }).zIndex;
 };
 
 const input = parseInput(getInput());
@@ -160,3 +220,21 @@ console.log("Part 1");
 console.log("Part 2");
 console.log(calculate2(input));
 // 138090455 too low
+// 26388042297736675409279 too high
+
+// https://stackoverflow.com/a/17445322
+function gcd(a, b) {
+  if (a < 0) a = -a;
+  if (b < 0) b = -b;
+  if (b > a) {
+    var temp = a;
+    a = b;
+    b = temp;
+  }
+  while (true) {
+    if (b == 0) return a;
+    a %= b;
+    if (a == 0) return b;
+    b %= a;
+  }
+}
