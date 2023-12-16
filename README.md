@@ -9,3 +9,4 @@
 | 05  | Haskell                  |
 | 06  | Haskell                  |
 | 07  | Haskell                  |
+| 08  | TypeScript               |
